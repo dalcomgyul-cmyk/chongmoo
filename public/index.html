@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>손총무의 화려한 업무</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar">
+  <div class="nav-logo">🍽️ 손총무의 화려한 업무</div>
+  <div class="nav-menu">
+    <a href="#" class="nav-item active" onclick="showPage('survey', this)">📋 설문</a>
+    <a href="#" class="nav-item" onclick="showPage('datesurvey', this)">📆 날짜 조사</a>
+    <a href="#" class="nav-item" onclick="showPage('status', this)">📊 응답 현황</a>
+    <a href="#" class="nav-item" onclick="goAdmin()">⚙️ 관리자</a>
+  </div>
+</nav>
+
+<div id="pw-modal" class="modal hidden">
+  <div class="modal-content">
+    <h2>🔒 관리자 인증</h2>
+    <div class="form-group">
+      <input type="password" id="admin-pw-input" placeholder="비밀번호를 입력하세요" />
+    </div>
+    <div class="modal-buttons">
+      <button onclick="checkAdminPw()" class="btn-submit">확인</button>
+      <button onclick="closePwModal()" class="btn-cancel">취소</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function goAdmin() {
+  document.getElementById('pw-modal').classList.remove('hidden');
+  document.getElementById('admin-pw-input').value = '';
+  setTimeout(() => document.getElementById('admin-pw-input').focus(), 100);
+}
+function closePwModal() {
+  document.getElementById('pw-modal').classList.add('hidden');
+}
+async function checkAdminPw() {
+  const pw = document.getElementById('admin-pw-input').value;
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    if (res.ok) {
+      window.location.href = '/admin.html';
+    } else {
+      alert('비밀번호가 틀렸어요!');
+      document.getElementById('admin-pw-input').value = '';
+    }
+  } catch (err) {
+    alert('오류가 발생했어요!');
+  }
+}
+document.getElementById('admin-pw-input')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') checkAdminPw();
+});
+
+const params = new URLSearchParams(window.location.search);
+if (params.get('unauthorized') === 'true') {
+  alert('관리자 인증이 필요해요!');
+  history.replaceState({}, '', '/');
+}
+
+function showPage(page, el) {
+  document.getElementById('survey-page').classList.toggle('hidden', page !== 'survey');
+  document.getElementById('datesurvey-page').classList.toggle('hidden', page !== 'datesurvey');
+  document.getElementById('status-page').classList.toggle('hidden', page !== 'status');
+  document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (page === 'status') loadStatusPage();
+  if (page === 'datesurvey') loadDateSurveyPage();
+}
+</script>
+
+  <!-- 설문 페이지 -->
+  <div id="survey-page">
+    <div class="container">
+      <header>
+        <div id="event-info" class="event-info"></div>
+      </header>
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="이름을 검색하세요..." />
+      </div>
+      <div id="member-list" class="member-list"></div>
+    </div>
+  </div>
+
+  <!-- 날짜 조사 페이지 -->
+  <div id="datesurvey-page" class="hidden">
+    <div class="container">
+      <div class="admin-section" style="margin-top:20px;">
+        <h3>📆 날짜 조사</h3>
+        <div class="input-row" style="margin:16px 0;">
+          <select id="datesurvey-user-select" onchange="loadDateSurveyUserPage()"></select>
+        </div>
+        <div id="datesurvey-info" style="margin-bottom:16px;font-size:15px;color:#555;"></div>
+
+        <h4 style="margin-bottom:12px;color:#555;">내 이름을 선택해주세요!</h4>
+        <div class="input-row" style="margin-bottom:16px;">
+          <select id="datesurvey-member-select">
+            <option value="">이름 선택</option>
+          </select>
+        </div>
+
+        <div id="datesurvey-dates-wrap" class="hidden">
+          <h4 style="margin-bottom:12px;color:#555;">가능한 날짜를 모두 선택해주세요!</h4>
+          <div id="datesurvey-dates-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;"></div>
+          <button onclick="submitDateSurvey()" class="btn-event-submit">💾 저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 응답 현황 페이지 -->
+  <div id="status-page" class="hidden">
+    <div class="container">
+      <div class="admin-section" style="margin-top:20px;">
+        <h3>📊 응답 현황</h3>
+        <div id="status-stats" style="margin:16px 0;font-size:15px;"></div>
+      </div>
+      <div id="status-coffee-wrap"></div>
+      <div class="admin-section" style="overflow-x:auto;">
+        <h3>📋 전체 응답 목록</h3>
+        <div id="status-table-wrap" style="margin-top:12px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="modal-name"></h2>
+      <div class="form-group">
+        <label>참석 여부</label>
+        <div class="btn-group">
+          <button id="btn-attend" class="btn-attend" onclick="setAttend(1)">✅ 참석</button>
+          <button id="btn-absent" class="btn-absent" onclick="setAttend(0)">❌ 미참석</button>
+        </div>
+      </div>
+      <div id="coffee-section" class="form-group hidden">
+        <label>커피 메뉴</label>
+        <select id="coffee-select">
+          <option value="">선택 안 함</option>
+        </select>
+        <div class="btn-group hot-ice-group">
+          <button id="btn-hot" onclick="setHotIce('HOT')">☕ HOT</button>
+          <button id="btn-ice" onclick="setHotIce('ICE')">🧊 ICE</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>비고</label>
+        <input type="text" id="note-input" placeholder="특이사항 입력 (선택)" />
+      </div>
+      <div class="modal-buttons">
+        <button onclick="submitResponse()" class="btn-submit">저장</button>
+        <button onclick="closeModal()" class="btn-cancel">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
