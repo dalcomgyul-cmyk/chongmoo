@@ -11,10 +11,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(session({
-  secret: 'chongmoo-secret-key',
+  secret: process.env.SESSION_SECRET || 'chongmoo-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 1000 * 60 * 60 * 8 }
+  cookie: { maxAge: 1000 * 60 * 60 * 8, httpOnly: true, secure: false }
 }));
 
 function requireAdmin(req, res, next) {
@@ -40,15 +40,32 @@ const pool = mysql.createPool({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
 });
+// 로그인 시도 횟수 제한
+const loginAttempts = new Map();
 
+function checkLoginLimit(ip) {
+  const now = Date.now();
+  const attempts = loginAttempts.get(ip) || { count: 0, resetAt: now + 60000 };
+  if (now > attempts.resetAt) {
+    attempts.count = 0;
+    attempts.resetAt = now + 60000;
+  }
+  attempts.count++;
+  loginAttempts.set(ip, attempts);
+  return attempts.count <= 5; // 1분에 5회 제한
+}
 // ===== 관리자 로그인 =====
 app.post('/api/admin/login', async (req, res) => {
+  const ip = req.ip;
+  if (!checkLoginLimit(ip)) {
+    return res.status(429).json({ error: '너무 많은 시도입니다. 잠시 후 다시 시도해주세요.' });
+  }
   const { password } = req.body;
   try {
     const [rows] = await pool.query(
       "SELECT setting_value FROM settings WHERE setting_key = 'admin_password'"
     );
-    const adminPassword = rows[0]?.setting_value || '04010502';
+    const adminPassword = rows[0]?.setting_value || process.env.ADMIN_PASSWORD;
     if (password === adminPassword) {
       req.session.isAdmin = true;
       res.json({ success: true });
